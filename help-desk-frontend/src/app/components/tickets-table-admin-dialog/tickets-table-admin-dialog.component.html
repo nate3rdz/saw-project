@@ -1,0 +1,16 @@
+<h2 mat-dialog-title>User's tickets</h2>
+<mat-dialog-content>
+    <form [formGroup]="userSearchForm">
+        <div fxLayout="column" fxLayoutGap="10px">
+            <mat-form-field>
+                <mat-label>Searched user's username</mat-label>
+                <input matInput type="text" formControlName="username">
+            </mat-form-field>
+        </div>
+    </form>
+    <app-tickets-table [userId]="searchedAccount.id" *ngIf="searchedAccount" (onTicketBarOpen)="openTicket($event)"></app-tickets-table>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button (click)="dialogRef.close()">Exit</button>
+  <button mat-button (click)="searchAccount()" cdkFocusInitial>Search user</button>
+</mat-dialog-actions>

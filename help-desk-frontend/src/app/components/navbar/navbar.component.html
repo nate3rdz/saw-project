@@ -1,0 +1,21 @@
+<!-- Navbar main frame -->
+<div class="navbar" fxLayout="column" fxLayoutAlign="center stretch">
+    <!-- Navbar items frame -->
+    <div fxLayout="row">
+        <!-- Menu -->
+        <div fxLayout="column" fxLayoutAlign="center start" fxFlex="50%">
+            Help Desk v. {{ version }}
+        </div>
+        <div fxLayout="column" fxLayoutAlign="center end" fxFlex="50%">
+            <button *ngIf="isLoggedIn" mat-icon-button [matMenuTriggerFor]="menu">
+                <mat-icon>
+                    menu
+                </mat-icon>
+            </button>
+            <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="editProfile()">Edit profile</button>
+                <button mat-menu-item (click)="logout()">Logout</button>
+            </mat-menu>
+        </div>
+    </div>
+</div>

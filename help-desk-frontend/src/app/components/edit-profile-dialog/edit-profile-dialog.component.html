@@ -1,0 +1,15 @@
+<h2 mat-dialog-title>Edit profile data</h2>
+<mat-dialog-content>
+    <form [formGroup]="profileEditForm">
+        <div fxLayout="column" fxLayoutGap="10px">
+            <mat-form-field>
+                <mat-label>Email</mat-label>
+                <input matInput type="email" formControlName="email">
+            </mat-form-field>
+        </div>
+    </form>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button (click)="dialogRef.close()">Exit</button>
+  <button mat-button (click)="editProfile()" [disabled]="!profileEditForm.valid" cdkFocusInitial>Update</button>
+</mat-dialog-actions>

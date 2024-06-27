@@ -1,0 +1,32 @@
+<div fxLayout="row" fxLayoutAlign="space-between center" fxFill>
+    <div fxLayout="column" fxFlex="50">
+        <app-ticket-bar [id]="ticket?.id || -1" [adminId]="adminTicket?.id || -1" [update]="updateViewer"></app-ticket-bar>
+    </div>
+    <div fxLayout="column" fxFlex="50" fxFill>
+        <mat-card appearance="outlined">
+            <mat-card-header>
+                <mat-card-title>
+                    <div fxLayout="row" fxLayoutAlign="space-between">
+                        <h3>My help tickets</h3>
+                        <button mat-icon-button matTooltip="Open a new ticket" (click)="openNewTicketDialog()">
+                            <mat-icon class="mat-primary">add</mat-icon>
+                        </button>
+                    </div>
+                </mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+                <div fxLayout="column" fxFlil>
+                    <app-tickets-table [updateTable]="updateTable" (onTicketBarOpen)="onTicketSelection($event)" (ticketClosed)="onTicketClosed($event)"></app-tickets-table>
+                </div>
+            </mat-card-content>
+        </mat-card>
+        <mat-card appearance="outlined" *ngIf="hasAdminRights">
+            <mat-card-header>
+                <h3>Admin panel</h3>
+            </mat-card-header>
+            <mat-card-content>
+                <app-admin-panel (onAdminTicketOpening)="onAdminTicketSelection($event)"></app-admin-panel>
+            </mat-card-content>
+        </mat-card>
+    </div>
+</div>

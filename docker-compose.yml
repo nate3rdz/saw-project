@@ -1,0 +1,43 @@
+version: '3'
+services:
+  mysql-db:
+    image: mysql
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    hostname: db
+    environment:
+      - MYSQL_ROOT_PASSWORD=
+      - MYSQL_ALLOW_EMPTY_PASSWORD=true
+      - MYSQL_AUTHENTICATION_PLUGIN=mysql_native_password
+    volumes:
+      - sql-db:/var/lib/mysql # loads the persistent data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # to create the "db" database if it's not existent
+    networks:
+      - network
+
+  backend:
+    build: ./help-desk-backend
+    ports:
+      - "4200:4200"
+      - "4203:4203"
+    depends_on:
+      - mysql-db
+    networks:
+      - network
+
+  frontend:
+    build: ./help-desk-frontend
+    ports:
+      - "4201:4201"
+    depends_on:
+      - mysql-db
+      - backend
+    networks:
+      - network
+
+networks:
+  network:
+
+volumes:
+  sql-db:

@@ -1,0 +1,14 @@
+.mat-table {
+  font-family: 'Roboto', sans-serif;
+}
+
+mat-icon {
+  vertical-align: middle;
+}
+
+mat-table {
+  max-height: calc(50vh - 100px);
+  overflow-y: auto;
+  width: 100%;
+  table-layout: fixed; /* Fa in modo che tutte le celle abbiano la stessa larghezza */
+}

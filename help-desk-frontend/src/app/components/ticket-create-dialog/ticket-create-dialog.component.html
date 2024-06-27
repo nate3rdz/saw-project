@@ -1,0 +1,19 @@
+<h2 mat-dialog-title>Open new ticket</h2>
+<mat-dialog-content>
+    <form [formGroup]="newTicketForm">
+        <div fxLayout="column" fxLayoutGap="10px">
+            <mat-form-field>
+                <mat-label>Subject</mat-label>
+                <input matInput type="text" formControlName="subject">
+            </mat-form-field>
+            <mat-form-field>
+                <mat-label>Description</mat-label>
+                <textarea matInput type="text" formControlName="description"></textarea>
+            </mat-form-field>
+        </div>
+    </form>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button (click)="dialogRef.close()">Exit</button>
+  <button mat-button (click)="create()" cdkFocusInitial>Create</button>
+</mat-dialog-actions>

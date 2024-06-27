@@ -1,0 +1,66 @@
+<div fxLayout="column">
+    <mat-card appearance="outlined">
+        <mat-card-header>
+            <mat-card-title>
+                <h3>Ticket viewer</h3>
+            </mat-card-title>
+        </mat-card-header>
+        <mat-card-content *ngIf="!!ticket">
+            <div fxLayout="column">
+                <div fxLayout="row">
+                    <p><strong>ID:</strong> {{ticket.id}}</p>
+                </div>
+                <div fxLayout="row">
+                    <p><strong>Subject:</strong> {{ticket.subject}}</p>
+                </div>
+                <div fxLayout="row">
+                    <p><strong>Created at:</strong> {{ticket.createdAt | date: 'dd/MM/yyyy, HH:mm'}}</p>
+                </div>
+                <div fxLayout="row">
+                    <p><strong>Status:</strong> {{ticket.closed ? 'CLOSED' : 'OPEN'}}</p>
+                </div>
+                <div fxLayout="row">
+                    <p><strong>Description:</strong> {{ticket.description}}</p>
+                </div>
+            </div>
+
+            <mat-divider></mat-divider>
+
+            <div fxLayout="column" fxLayoutAlign="start" style="margin-top: 10px">
+                <div fxLayout="row" fxLayoutAlign="center center">
+                    <h3>Ticket's answers</h3>
+                </div>
+                <div fxLayout="column" fxLayoutGap="10px">
+                    <div fxLayout="column" fxLayoutGap="10px" class="scrollable-answer-area" #textbox>
+                        <div *ngFor="let answer of this.answers;">
+                            <div fxLayout="row" fxLayoutGap="10px" *ngIf="answer.account.id !== account.id">
+                                <p class="chat-message"><strong>{{answer.account.username}}:</strong>  {{answer.text}}</p>
+                            </div>
+                            <div fxLayout="row" fxLayoutGap="10px" *ngIf="answer.account.id === account.id">
+                                <p class="chat-message"><strong>{{answer.account.username + ' (YOU)'}}:</strong>  {{answer.text}}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <mat-divider></mat-divider>
+
+                    <div fxLayout="row" fxLayoutAlign="center center" fxFill>
+                        <form [formGroup]="answerForm" fxFill>
+                            <mat-form-field style="width: 100%;">
+                                <mat-label>Answer</mat-label>
+                                <textarea matInput formControlName="text" maxlength="512"></textarea>
+                            </mat-form-field>
+                        </form>
+                    </div>
+                    <div fxLayout="row" fxLayoutAlign="end end">
+                        <button mat-flat-button class="mat-primary" [disabled]="!answerForm.valid || ticket.closed" (click)="answer()">Answer</button>
+                    </div>
+                </div>
+            </div>
+        </mat-card-content>
+        <div fxLayout="row" fxLayoutAlign="center center" *ngIf="!ticket">
+            <p>No ticket selected.</p>
+        </div>
+        
+    </mat-card>
+</div>

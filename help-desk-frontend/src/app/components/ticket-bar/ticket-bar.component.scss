@@ -1,0 +1,23 @@
+mat-card {
+    mat-card-header {
+        * {
+            font-weight: 900;
+        }
+    }
+}
+
+textarea {
+    resize: none;
+}
+
+.scrollable-answer-area {
+    max-height: 20vh;
+    overflow-y: auto;
+}
+
+.chat-message {
+    word-wrap: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+}
