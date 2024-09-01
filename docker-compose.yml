@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 services:
   mysql-db:
     image: mysql
@@ -38,6 +38,7 @@ services:
 
 networks:
   network:
+    driver: bridge
 
 volumes:
   sql-db:

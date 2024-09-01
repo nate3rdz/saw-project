@@ -1,6 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import PropellerLogger from "../services/propellerLogger.service.js";
-import IEndpoint, { EndpointFunction, EndpointMethods } from "../interfaces/endpoints-system/IEndpoint";
+import IEndpoint, {
+  EndpointFunction,
+  EndpointMethods,
+} from "../interfaces/endpoints-system/IEndpoint";
 import IEndpointMiddleware from "../interfaces/endpoints-system/IEndpointMiddleware";
 import IEndpointValidator from "../interfaces/endpoints-system/IEndpointValidator";
 import { MIDDLEWARES } from "../middlewares/index.js";
@@ -8,191 +11,224 @@ import InternalAPIError from "./InternalAPIError.js";
 import InnerDataI from "../interfaces/endpoints-system/InnerDataI.js";
 import { Accounts } from "../database/entities/Accounts.js";
 import AuthService from "../services/auth.service.js";
-import { AppDataSource } from "../database/data/data-source.js";
+import AppDataSource from "../database/data/data-source.js";
 import { UserPermissions } from "../interfaces/system/IAuth.js";
 import PermissionsService from "../services/permissions.service.js";
 
-export default abstract class Endpoint<R extends Request, S extends Response, T> implements IEndpoint<R, S, T> {
-    constructor(middlewares: IEndpointMiddleware[]) {
-        this.setValidators();
-        this.setMiddlewares(middlewares || []);
-    }
+export default abstract class Endpoint<R extends Request, S extends Response, T>
+  implements IEndpoint<R, S, T>
+{
+  constructor(middlewares: IEndpointMiddleware[]) {
+    this.setValidators();
+    this.setMiddlewares(middlewares || []);
+  }
 
-    private _method: EndpointMethods;
-    private _auth: boolean = true;
-    private _requiredPermissions: UserPermissions[] = [];
-    private _validators: IEndpointValidator[] = [];
-    private _path: string;
-    private _function: EndpointFunction<R, S, T>;
-    private _middlewares: IEndpointMiddleware[] = [];
-    private _innerData: InnerDataI = {
-        account: null,
-        auth: {
-            token: null,
-            data: null
-        },
-        request: {
-            ip: null
-        }
-    };
+  private _method: EndpointMethods;
+  private _auth: boolean = true;
+  private _requiredPermissions: UserPermissions[] = [];
+  private _validators: IEndpointValidator[] = [];
+  private _path: string;
+  private _function: EndpointFunction<R, S, T>;
+  private _middlewares: IEndpointMiddleware[] = [];
+  private _innerData: InnerDataI = {
+    account: null,
+    auth: {
+      token: null,
+      data: null,
+    },
+    request: {
+      ip: null,
+    },
+  };
 
-    /**This function sets the validators of the endpoint. */
-    abstract setValidators(): void;
+  /**This function sets the validators of the endpoint. */
+  abstract setValidators(): void;
 
-    /** This function takes an array of Endpoint Middlewares info and then is used to initialize the endpoint with its middlewares */
-    private setMiddlewares(middlewares: IEndpointMiddleware[]): void {
-        this.middlewares.push(...middlewares);
-    };
+  /** This function takes an array of Endpoint Middlewares info and then is used to initialize the endpoint with its middlewares */
+  private setMiddlewares(middlewares: IEndpointMiddleware[]): void {
+    this.middlewares.push(...middlewares);
+  }
 
-    /** This function generates an endpoint flow. It's called inside of the router, and takes an endpoint as argument.
-     * This is done to circumvent the limitation about the subclasses that implements this endpoint.
-     */
-    static generate<R extends Request, S extends Response, T>(endpoint: Endpoint<R, S, T>): (req: R, res: S, next: NextFunction) => Promise<void> {
-        return async (req: R, res: S, next: NextFunction) => {
-            try {
-                // innerData population
-                let innerDataPopulationSuccess = true;
-                try {
-                    if (endpoint.auth) { // if the endpoint inner data about user info can be populated because of the presence of the auth token
-                        const authToken = AuthService.getDataByToken(req?.headers?.authorization);
+  /** This function generates an endpoint flow. It's called inside of the router, and takes an endpoint as argument.
+   * This is done to circumvent the limitation about the subclasses that implements this endpoint.
+   */
+  static generate<R extends Request, S extends Response, T>(
+    endpoint: Endpoint<R, S, T>
+  ): (req: R, res: S, next: NextFunction) => Promise<void> {
+    return async (req: R, res: S, next: NextFunction) => {
+      try {
+        // innerData population
+        let innerDataPopulationSuccess = true;
+        try {
+          if (endpoint.auth) {
+            // if the endpoint inner data about user info can be populated because of the presence of the auth token
+            const authToken = AuthService.getDataByToken(
+              req?.headers?.authorization
+            );
 
-                        if (!authToken || !authToken?.data?.userId) {
-                            PropellerLogger.error(`Impossible to seed user\'s data.`);
-                            throw new InternalAPIError('Internal error', 500);
-                        }
-
-                        // populate user's data
-                        endpoint._innerData.account = await AppDataSource.getRepository(Accounts).findOne({ where: { id: authToken.data.userId }, relations: { permissions: true }, select: ['email', 'permissions', 'registerDate', 'username', 'id'] });
-                        if (!endpoint._innerData.account)
-                            throw new InternalAPIError('Account not found.', 404);
-
-                        endpoint._innerData.auth = authToken;
-                    }
-
-                    // populates inner data that's about the endpoint call
-                    endpoint._innerData.request.ip = req.socket.remoteAddress; // IP
-                } catch (e) {
-                    PropellerLogger.error(`Critical error while populating endpoint's inner data (${e.toString()})`);
-                    res.status(500).send({ message: 'Invalid credentials.' });
-                    innerDataPopulationSuccess = false;
-                }
-
-                if (innerDataPopulationSuccess) { // if the innerData population went correctly
-                    // user permissions check
-                    if (!PermissionsService.validate(endpoint._innerData.account?.permissions?.map(elem => elem.name) || [], endpoint?.requiredPermissions || []))
-                        throw new InternalAPIError('Not authorized to perform this action.', 403);
-
-
-                    let middlewareResult = null; // if there's any 'pre' middleware, then this variable saves the result of the middleware
-                    let data = null; // final result of endpoint's call.
-
-                    for (let middleware of endpoint.middlewares || []) { // applies 'pre' middlewares, if any
-                        if (middleware.dest === 'pre') {
-                            middlewareResult = await MIDDLEWARES[middleware.identifier](req); // todo: the typing is lost here because of the definition of the MIDDLEWARES array. Find a solution
-                        }
-                    }
-
-                    // TODO: Add somesort of runtime validation here
-
-                    data = await endpoint.function(middlewareResult || req, res); // applies main function
-
-                    // TODO: Add somesort of runtime validation here
-
-                    for (let middleware of endpoint.middlewares || []) { // applies 'post' middlewares, if any
-                        if (middleware.dest === 'post') {
-                            data = await MIDDLEWARES[middleware.identifier](data as any);
-                        }
-                    }
-
-                    res.send(data); // sends the result to the user.
-                }
-            } catch (e) {
-                if (e instanceof InternalAPIError) {
-                    if (e.log)
-                        PropellerLogger.error(e.log); // if there's any log message to write
-
-                    res.status(e.status).send({ message: e.message });
-                } else {
-                    res.status(500).send({ message: e.toString() });
-                }
+            if (!authToken || !authToken?.data?.userId) {
+              PropellerLogger.error(`Impossible to seed user\'s data.`);
+              throw new InternalAPIError("Internal error", 500);
             }
+
+            // populate user's data
+            endpoint._innerData.account = await AppDataSource.getRepository(
+              Accounts
+            ).findOne({
+              where: { id: authToken.data.userId },
+              relations: { permissions: true },
+              select: [
+                "email",
+                "permissions",
+                "registerDate",
+                "username",
+                "id",
+              ],
+            });
+            if (!endpoint._innerData.account)
+              throw new InternalAPIError("Account not found.", 404);
+
+            endpoint._innerData.auth = authToken;
+          }
+
+          // populates inner data that's about the endpoint call
+          endpoint._innerData.request.ip = req.socket.remoteAddress; // IP
+        } catch (e) {
+          PropellerLogger.error(
+            `Critical error while populating endpoint's inner data (${e.toString()})`
+          );
+          res.status(500).send({ message: "Invalid credentials." });
+          innerDataPopulationSuccess = false;
         }
-    }
 
+        if (innerDataPopulationSuccess) {
+          // if the innerData population went correctly
+          // user permissions check
+          if (
+            !PermissionsService.validate(
+              endpoint._innerData.account?.permissions?.map(
+                (elem) => elem.name
+              ) || [],
+              endpoint?.requiredPermissions || []
+            )
+          )
+            throw new InternalAPIError(
+              "Not authorized to perform this action.",
+              403
+            );
 
-    /****************GETTERS****************/
+          let middlewareResult = null; // if there's any 'pre' middleware, then this variable saves the result of the middleware
+          let data = null; // final result of endpoint's call.
 
-    /** The method used by the endpoint (e.g. POST, GET) */
-    public get method() {
-        return this._method;
-    }
+          for (let middleware of endpoint.middlewares || []) {
+            // applies 'pre' middlewares, if any
+            if (middleware.dest === "pre") {
+              middlewareResult = await MIDDLEWARES[middleware.identifier](req); // todo: the typing is lost here because of the definition of the MIDDLEWARES array. Find a solution
+            }
+          }
 
-    /** Function runned by this endpoint */
-    public get function() {
-        return this._function;
-    }
+          // TODO: Add somesort of runtime validation here
 
-    /** If the endpoint should be protected by JWT validation. By default it's true */
-    public get auth() {
-        return this._auth;
-    }
+          data = await endpoint.function(middlewareResult || req, res); // applies main function
 
-    /** The scoped-permissions required to access an endpoint. */
-    public get requiredPermissions() {
-        return this._requiredPermissions;
-    }
+          // TODO: Add somesort of runtime validation here
 
-    /** Runtime validators used by the endpoint to validate its input and output */
-    public get validators() {
-        return this._validators;
-    }
+          for (let middleware of endpoint.middlewares || []) {
+            // applies 'post' middlewares, if any
+            if (middleware.dest === "post") {
+              data = await MIDDLEWARES[middleware.identifier](data as any);
+            }
+          }
 
-    /** Middlewares runned inside of the endpoint flow */
-    public get middlewares() {
-        return this._middlewares;
-    }
+          res.send(data); // sends the result to the user.
+        }
+      } catch (e) {
+        if (e instanceof InternalAPIError) {
+          if (e.log) PropellerLogger.error(e.log); // if there's any log message to write
 
-    /** API Path used by this endpoint */
-    public get path() {
-        return this._path;
-    }
+          res.status(e.status).send({ message: e.message });
+        } else {
+          res.status(500).send({ message: e.toString() });
+        }
+      }
+    };
+  }
 
-    /**
-     * The basic data that can be extrapolated by an API call and that's seeded into each endpoints
-    */
-    public get innerData() {
-        if (!this.auth) {
-            PropellerLogger.error('Invalid use of innerData: it\'s impossible to use innerData in an endpoint without auth option turned on.');
-            throw new InternalAPIError('Internal error.', 500);
-        } else return this._innerData;
-    }
+  /****************GETTERS****************/
 
-    /****************SETTERS****************/
-    public set method(method: EndpointMethods) {
-        this._method = method;
-    }
+  /** The method used by the endpoint (e.g. POST, GET) */
+  public get method() {
+    return this._method;
+  }
 
-    public set function(fn: EndpointFunction<R, S, T>) {
-        this._function = fn;
-    }
+  /** Function runned by this endpoint */
+  public get function() {
+    return this._function;
+  }
 
-    public set auth(auth: boolean) {
-        this._auth = auth;
-    }
+  /** If the endpoint should be protected by JWT validation. By default it's true */
+  public get auth() {
+    return this._auth;
+  }
 
-    public set requiredPermissions(permissions: UserPermissions[]) {
-        this._requiredPermissions = permissions;
-    }
+  /** The scoped-permissions required to access an endpoint. */
+  public get requiredPermissions() {
+    return this._requiredPermissions;
+  }
 
-    private set validators(validators: IEndpointValidator[]) {
-        this._validators = validators;
-    }
+  /** Runtime validators used by the endpoint to validate its input and output */
+  public get validators() {
+    return this._validators;
+  }
 
-    private set middlewares(middlewares: IEndpointMiddleware[]) {
-        this._middlewares = middlewares;
-    }
+  /** Middlewares runned inside of the endpoint flow */
+  public get middlewares() {
+    return this._middlewares;
+  }
 
-    public set path(path: string) {
-        this._path = path;
-    }
+  /** API Path used by this endpoint */
+  public get path() {
+    return this._path;
+  }
+
+  /**
+   * The basic data that can be extrapolated by an API call and that's seeded into each endpoints
+   */
+  public get innerData() {
+    if (!this.auth) {
+      PropellerLogger.error(
+        "Invalid use of innerData: it's impossible to use innerData in an endpoint without auth option turned on."
+      );
+      throw new InternalAPIError("Internal error.", 500);
+    } else return this._innerData;
+  }
+
+  /****************SETTERS****************/
+  public set method(method: EndpointMethods) {
+    this._method = method;
+  }
+
+  public set function(fn: EndpointFunction<R, S, T>) {
+    this._function = fn;
+  }
+
+  public set auth(auth: boolean) {
+    this._auth = auth;
+  }
+
+  public set requiredPermissions(permissions: UserPermissions[]) {
+    this._requiredPermissions = permissions;
+  }
+
+  private set validators(validators: IEndpointValidator[]) {
+    this._validators = validators;
+  }
+
+  private set middlewares(middlewares: IEndpointMiddleware[]) {
+    this._middlewares = middlewares;
+  }
+
+  public set path(path: string) {
+    this._path = path;
+  }
 }

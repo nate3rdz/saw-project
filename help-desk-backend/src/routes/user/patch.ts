@@ -1,52 +1,64 @@
 import { Response } from "express";
 import Endpoint from "../../classes/Endpoint.js";
 import InternalAPIError from "../../classes/InternalAPIError.js";
-import { AppDataSource } from "../../database/data/data-source.js";
+import AppDataSource from "../../database/data/data-source.js";
 import { Accounts } from "../../database/entities/Accounts.js";
-import IUserPatchInput, { userPatchInputBodySchema } from "../../interfaces/endpoints-input/user/IUserPatch.js";
-import { IUserPatchOutput, userPatchOutputSchema } from "../../interfaces/endpoints-output/user/IUserPatch.js";
+import IUserPatchInput, {
+  userPatchInputBodySchema,
+} from "../../interfaces/endpoints-input/user/IUserPatch.js";
+import {
+  IUserPatchOutput,
+  userPatchOutputSchema,
+} from "../../interfaces/endpoints-output/user/IUserPatch.js";
 import IEndpointValidator from "../../interfaces/endpoints-system/IEndpointValidator";
 
+export class UserPatch extends Endpoint<
+  IUserPatchInput,
+  Response,
+  IUserPatchOutput
+> {
+  constructor() {
+    super([]);
 
+    this.function = this.fn;
+    this.method = "patch";
+    this.path = "/users";
+  }
 
-export class UserPatch extends Endpoint<IUserPatchInput, Response, IUserPatchOutput> {
-    constructor() {
-        super([]);
+  setValidators() {
+    const bodyInputValidator: IEndpointValidator = {
+      schema: userPatchInputBodySchema,
+      dest: "endpoint-input",
+      target: "body",
+    };
 
-        this.function = this.fn;
-        this.method = "patch";
-        this.path = '/users';
-    }
+    const outputValidator: IEndpointValidator = {
+      schema: userPatchOutputSchema,
+      dest: "endpoint-output",
+      target: "other",
+    };
 
-    setValidators() {
-        const bodyInputValidator: IEndpointValidator = {
-            schema: userPatchInputBodySchema,
-            dest: "endpoint-input",
-            target: "body"
-        };
+    this.validators.push(bodyInputValidator, outputValidator);
+  }
 
-        const outputValidator: IEndpointValidator = {
-            schema: userPatchOutputSchema,
-            dest: "endpoint-output",
-            target: "other"
-        };
+  async fn(req: IUserPatchInput): Promise<IUserPatchOutput> {
+    if (Object.keys(req.body).length === 0)
+      // in case of missing data in the call
+      return {};
 
-        this.validators.push(bodyInputValidator, outputValidator);
-    }
+    const account = await AppDataSource.createQueryBuilder()
+      .update(Accounts)
+      .set(req.body || {})
+      .where("id = :id", { id: this.innerData.account.id })
+      .execute();
 
-    async fn(req: IUserPatchInput): Promise<IUserPatchOutput> {
-        if (Object.keys(req.body).length === 0) // in case of missing data in the call
-            return {};
+    if (account.affected === 0)
+      throw new InternalAPIError("Error during user's update.", 304);
 
-        const account = await AppDataSource.createQueryBuilder().update(Accounts).set(req.body || {}).where("id = :id", {id: this.innerData.account.id}).execute();
+    const output: IUserPatchOutput = {
+      success: account.affected > 0 ? true : false,
+    };
 
-        if (account.affected === 0)
-            throw new InternalAPIError('Error during user\'s update.', 304);
-
-        const output: IUserPatchOutput = {
-            success: (account.affected > 0) ? true : false
-        };
-
-        return output;
-    }
+    return output;
+  }
 }
